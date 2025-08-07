@@ -29,14 +29,6 @@
         body {
             font-family: 'Special Elite', monospace;
             background-color: #f4f1e8;
-            background-image: 
-                repeating-linear-gradient(
-                    0deg,
-                    transparent,
-                    transparent 28px,
-                    rgba(139, 69, 19, 0.05) 28px,
-                    rgba(139, 69, 19, 0.05) 29px
-                );
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -312,6 +304,48 @@
             }
         }
         
+        // Find or create Profound Thoughts folder
+        async function getOrCreateFolder() {
+            const accessToken = gapi.auth.getToken().access_token;
+            const folderName = 'Profound Thoughts';
+            
+            // First, check if folder exists
+            const searchResponse = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+                {
+                    headers: new Headers({ 'Authorization': 'Bearer ' + accessToken })
+                }
+            );
+            
+            const searchData = await searchResponse.json();
+            
+            if (searchData.files && searchData.files.length > 0) {
+                // Folder exists, return its ID
+                return searchData.files[0].id;
+            } else {
+                // Create new folder
+                const folderMetadata = {
+                    'name': folderName,
+                    'mimeType': 'application/vnd.google-apps.folder'
+                };
+                
+                const createResponse = await fetch(
+                    'https://www.googleapis.com/drive/v3/files',
+                    {
+                        method: 'POST',
+                        headers: new Headers({
+                            'Authorization': 'Bearer ' + accessToken,
+                            'Content-Type': 'application/json'
+                        }),
+                        body: JSON.stringify(folderMetadata)
+                    }
+                );
+                
+                const folderData = await createResponse.json();
+                return folderData.id;
+            }
+        }
+        
         // Save to Google Drive
         async function saveToGoogleDrive() {
             if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
@@ -328,9 +362,14 @@
                 const pdfBlob = await generatePDF();
                 const fileName = `profound-thoughts-${new Date().toISOString().split('T')[0]}.pdf`;
                 
+                // Get or create the Profound Thoughts folder
+                status.textContent = 'Finding folder...';
+                const folderId = await getOrCreateFolder();
+                
                 const metadata = {
                     'name': fileName,
-                    'mimeType': 'application/pdf'
+                    'mimeType': 'application/pdf',
+                    'parents': [folderId]  // Save in the Profound Thoughts folder
                 };
                 
                 const form = new FormData();
@@ -349,7 +388,7 @@
                     return response.json();
                 }).then((data) => {
                     if (data.id) {
-                        status.textContent = 'Saved to Google Drive!';
+                        status.textContent = 'Saved to Profound Thoughts folder!';
                         setTimeout(() => {
                             status.textContent = 'Ready';
                         }, 3000);
@@ -374,3 +413,5 @@
     </script>
 </body>
 </html>
+
+
