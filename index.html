@@ -126,7 +126,6 @@
         <div class="controls">
             <button onclick="renderLatex()">Render LaTeX</button>
             <button onclick="exportText()">Export</button>
-            <button onclick="saveToGoogleDrive()">Save to Drive</button>  <!-- This is it! -->
             <button onclick="clearText()">Clear</button>
         </div>
     </div>
@@ -309,6 +308,8 @@
             const accessToken = gapi.auth.getToken().access_token;
             const folderName = 'Profound Thoughts';
             
+            console.log('Searching for folder:', folderName);
+            
             // First, check if folder exists
             const searchResponse = await fetch(
                 `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
@@ -318,12 +319,15 @@
             );
             
             const searchData = await searchResponse.json();
+            console.log('Search results:', searchData);
             
             if (searchData.files && searchData.files.length > 0) {
                 // Folder exists, return its ID
+                console.log('Folder exists with ID:', searchData.files[0].id);
                 return searchData.files[0].id;
             } else {
                 // Create new folder
+                console.log('Creating new folder...');
                 const folderMetadata = {
                     'name': folderName,
                     'mimeType': 'application/vnd.google-apps.folder'
@@ -342,6 +346,7 @@
                 );
                 
                 const folderData = await createResponse.json();
+                console.log('Folder created:', folderData);
                 return folderData.id;
             }
         }
@@ -413,5 +418,3 @@
     </script>
 </body>
 </html>
-
-
