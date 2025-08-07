@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profound Writer</title>
+    
+    <!-- KaTeX for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+    
+    <!-- Google APIs for Drive integration -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    
+    <!-- jsPDF for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Special+Elite&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Special Elite', monospace;
+            background-color: #f4f1e8;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 28px,
+                    rgba(139, 69, 19, 0.05) 28px,
+                    rgba(139, 69, 19, 0.05) 29px
+                );
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #2c2c2c;
+        }
+        
+        .header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(139, 69, 19, 0.1);
+        }
+        
+        .title {
+            font-size: 1.2em;
+            opacity: 0.7;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+        
+        button {
+            background: none;
+            border: 1px solid rgba(139, 69, 19, 0.3);
+            padding: 8px 16px;
+            font-family: inherit;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #2c2c2c;
+        }
+        
+        button:hover {
+            background-color: rgba(139, 69, 19, 0.1);
+            border-color: rgba(139, 69, 19, 0.5);
+        }
+        
+        .editor-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            overflow-y: auto;
+        }
+        
+        #editor {
+            width: 100%;
+            max-width: 700px;
+            min-height: 500px;
+            font-size: 1.1em;
+            line-height: 1.8;
+            outline: none;
+            background: transparent;
+            caret-color: #2c2c2c;
+        }
+        
+        #editor:focus {
+            outline: none;
+        }
+        
+        /* LaTeX preview styling */
+        .latex-preview {
+            background-color: rgba(255, 255, 255, 0.5);
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid rgba(139, 69, 19, 0.3);
+        }
+        
+        .status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.8em;
+            opacity: 0.5;
+        }
+        
+        /* Typewriter cursor effect */
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        
+        #editor:focus::after {
+            content: '|';
+            animation: blink 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Profound Writer</div>
+        <div class="controls">
+            <button onclick="renderLatex()">Render LaTeX</button>
+            <button onclick="exportText()">Export</button>
+            <button onclick="clearText()">Clear</button>
+        </div>
+    </div>
+    
+    <div class="editor-container">
+        <div id="editor" contenteditable="true" spellcheck="false"></div>
+    </div>
+    
+    <div class="status" id="status">Ready</div>
+    
+    <script>
+        const editor = document.getElementById('editor');
+        const status = document.getElementById('status');
+        
+        // Load saved content
+        const savedContent = localStorage.getItem('profound-writer-content');
+        if (savedContent) {
+            editor.innerHTML = savedContent;
+        }
+        
+        // Auto-save
+        let saveTimeout;
+        editor.addEventListener('input', () => {
+            clearTimeout(saveTimeout);
+            status.textContent = 'Writing...';
+            
+            saveTimeout = setTimeout(() => {
+                localStorage.setItem('profound-writer-content', editor.innerHTML);
+                status.textContent = 'Saved';
+                setTimeout(() => {
+                    status.textContent = 'Ready';
+                }, 1000);
+            }, 1000);
+        });
+        
+        // Render LaTeX
+        function renderLatex() {
+            const text = editor.innerText;
+            const latexPattern = /\$\$([\s\S]*?)\$\$|\$(.*?)\$/g;
+            
+            let html = text;
+            let match;
+            const matches = [];
+            
+            while ((match = latexPattern.exec(text)) !== null) {
+                matches.push({
+                    full: match[0],
+                    content: match[1] || match[2],
+                    display: match[1] ? true : false
+                });
+            }
+            
+            matches.reverse().forEach(m => {
+                try {
+                    const rendered = katex.renderToString(m.content, {
+                        displayMode: m.display,
+                        throwOnError: false
+                    });
+                    html = html.replace(m.full, `<span class="latex-preview">${rendered}</span>`);
+                } catch (e) {
+                    console.error('LaTeX error:', e);
+                }
+            });
+            
+            editor.innerHTML = html;
+            status.textContent = 'LaTeX rendered';
+        }
+        
+        // Export functionality
+        function exportText() {
+            const text = editor.innerText;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `profound-thoughts-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            status.textContent = 'Exported';
+        }
+        
+        // Clear text
+        function clearText() {
+            if (confirm('Clear all text? This cannot be undone.')) {
+                editor.innerHTML = '';
+                localStorage.removeItem('profound-writer-content');
+                status.textContent = 'Cleared';
+            }
+        }
+        
+        // Focus on load
+        editor.focus();
+        
+        // Google Drive API configuration
+        const CLIENT_ID = '1029940176187-bkefpcfchfkrvcpqofm6ns6jmoai0gd9.apps.googleusercontent.com'; // Replace with your Google API client ID
+        const API_KEY = 'AIzaSyBM20W8Kf_li6lkLIm5fh0OgN8kXCSyI44'; // Replace with your Google API key
+        const DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        
+        let authorizeButton = null;
+        let signoutButton = null;
+        
+        // Initialize the Google API client
+        function handleClientLoad() {
+            gapi.load('client:auth2', initClient);
+        }
+        
+        function initClient() {
+            gapi.client.init({
+                apiKey: API_KEY,
+                clientId: CLIENT_ID,
+                discoveryDocs: DISCOVERY_DOCS,
+                scope: SCOPES
+            }).then(() => {
+                // Listen for sign-in state changes
+                gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+                updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+            }, (error) => {
+                console.error('Error initializing Google API client:', error);
+                status.textContent = 'Google Drive setup failed';
+            });
+        }
+        
+        function updateSigninStatus(isSignedIn) {
+            if (isSignedIn) {
+                status.textContent = 'Connected to Google Drive';
+            } else {
+                status.textContent = 'Not connected to Google Drive';
+            }
+        }
+        
+        // Generate PDF from content
+        async function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            
+            // Create temporary container for clean rendering
+            const tempContainer = document.createElement('div');
+            tempContainer.style.width = '210mm'; // A4 width
+            tempContainer.style.padding = '20mm';
+            tempContainer.style.fontFamily = "'Special Elite', monospace";
+            tempContainer.style.fontSize = '12pt';
+            tempContainer.style.lineHeight = '1.8';
+            tempContainer.style.color = '#2c2c2c';
+            tempContainer.style.backgroundColor = '#f4f1e8';
+            tempContainer.innerHTML = editor.innerHTML;
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            document.body.appendChild(tempContainer);
+            
+            try {
+                const canvas = await html2canvas(tempContainer, {
+                    scale: 2,
+                    backgroundColor: '#f4f1e8'
+                });
+                
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+                const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight) * 25.4;
+                
+                const imgScaledWidth = imgWidth * ratio;
+                const imgScaledHeight = imgHeight * ratio;
+                
+                pdf.addImage(imgData, 'PNG', 0, 0, imgScaledWidth, imgScaledHeight);
+                
+                document.body.removeChild(tempContainer);
+                
+                return pdf.output('blob');
+            } catch (error) {
+                document.body.removeChild(tempContainer);
+                throw error;
+            }
+        }
+        
+        // Save to Google Drive
+        async function saveToGoogleDrive() {
+            if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+                // Sign in if not already signed in
+                gapi.auth2.getAuthInstance().signIn().then(() => {
+                    saveToGoogleDrive();
+                });
+                return;
+            }
+            
+            status.textContent = 'Generating PDF...';
+            
+            try {
+                const pdfBlob = await generatePDF();
+                const fileName = `profound-thoughts-${new Date().toISOString().split('T')[0]}.pdf`;
+                
+                const metadata = {
+                    'name': fileName,
+                    'mimeType': 'application/pdf'
+                };
+                
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', pdfBlob);
+                
+                const accessToken = gapi.auth.getToken().access_token;
+                
+                status.textContent = 'Uploading to Google Drive...';
+                
+                fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                    method: 'POST',
+                    headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+                    body: form
+                }).then((response) => {
+                    return response.json();
+                }).then((data) => {
+                    if (data.id) {
+                        status.textContent = 'Saved to Google Drive!';
+                        setTimeout(() => {
+                            status.textContent = 'Ready';
+                        }, 3000);
+                    } else {
+                        throw new Error('Upload failed');
+                    }
+                }).catch((error) => {
+                    console.error('Upload error:', error);
+                    status.textContent = 'Upload failed';
+                });
+                
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                status.textContent = 'Failed to generate PDF';
+            }
+        }
+        
+        // Load Google API on page load
+        window.onload = function() {
+            handleClientLoad();
+        };
+    </script>
+</body>
+</html>
