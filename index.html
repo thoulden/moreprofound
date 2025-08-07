@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profound Writer</title>
+    
+    <!-- KaTeX for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Special+Elite&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Special Elite', monospace;
+            background-color: #f4f1e8;
+            background-image: 
+                repeating-linear-gradient(
+                    0deg,
+                    transparent,
+                    transparent 28px,
+                    rgba(139, 69, 19, 0.05) 28px,
+                    rgba(139, 69, 19, 0.05) 29px
+                );
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #2c2c2c;
+        }
+        
+        .header {
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(139, 69, 19, 0.1);
+        }
+        
+        .title {
+            font-size: 1.2em;
+            opacity: 0.7;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+        }
+        
+        button {
+            background: none;
+            border: 1px solid rgba(139, 69, 19, 0.3);
+            padding: 8px 16px;
+            font-family: inherit;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #2c2c2c;
+        }
+        
+        button:hover {
+            background-color: rgba(139, 69, 19, 0.1);
+            border-color: rgba(139, 69, 19, 0.5);
+        }
+        
+        .editor-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+            overflow-y: auto;
+        }
+        
+        #editor {
+            width: 100%;
+            max-width: 700px;
+            min-height: 500px;
+            font-size: 1.1em;
+            line-height: 1.8;
+            outline: none;
+            background: transparent;
+            caret-color: #2c2c2c;
+        }
+        
+        #editor:focus {
+            outline: none;
+        }
+        
+        /* LaTeX preview styling */
+        .latex-preview {
+            background-color: rgba(255, 255, 255, 0.5);
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid rgba(139, 69, 19, 0.3);
+        }
+        
+        .status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.8em;
+            opacity: 0.5;
+        }
+        
+        /* Typewriter cursor effect */
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        
+        #editor:focus::after {
+            content: '|';
+            animation: blink 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">Profound Writer</div>
+        <div class="controls">
+            <button onclick="renderLatex()">Render LaTeX</button>
+            <button onclick="exportText()">Export</button>
+            <button onclick="clearText()">Clear</button>
+        </div>
+    </div>
+    
+    <div class="editor-container">
+        <div id="editor" contenteditable="true" spellcheck="false"></div>
+    </div>
+    
+    <div class="status" id="status">Ready</div>
+    
+    <script>
+        const editor = document.getElementById('editor');
+        const status = document.getElementById('status');
+        
+        // Load saved content
+        const savedContent = localStorage.getItem('profound-writer-content');
+        if (savedContent) {
+            editor.innerHTML = savedContent;
+        }
+        
+        // Auto-save
+        let saveTimeout;
+        editor.addEventListener('input', () => {
+            clearTimeout(saveTimeout);
+            status.textContent = 'Writing...';
+            
+            saveTimeout = setTimeout(() => {
+                localStorage.setItem('profound-writer-content', editor.innerHTML);
+                status.textContent = 'Saved';
+                setTimeout(() => {
+                    status.textContent = 'Ready';
+                }, 1000);
+            }, 1000);
+        });
+        
+        // Render LaTeX
+        function renderLatex() {
+            const text = editor.innerText;
+            const latexPattern = /\$\$([\s\S]*?)\$\$|\$(.*?)\$/g;
+            
+            let html = text;
+            let match;
+            const matches = [];
+            
+            while ((match = latexPattern.exec(text)) !== null) {
+                matches.push({
+                    full: match[0],
+                    content: match[1] || match[2],
+                    display: match[1] ? true : false
+                });
+            }
+            
+            matches.reverse().forEach(m => {
+                try {
+                    const rendered = katex.renderToString(m.content, {
+                        displayMode: m.display,
+                        throwOnError: false
+                    });
+                    html = html.replace(m.full, `<span class="latex-preview">${rendered}</span>`);
+                } catch (e) {
+                    console.error('LaTeX error:', e);
+                }
+            });
+            
+            editor.innerHTML = html;
+            status.textContent = 'LaTeX rendered';
+        }
+        
+        // Export functionality
+        function exportText() {
+            const text = editor.innerText;
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `profound-thoughts-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            status.textContent = 'Exported';
+        }
+        
+        // Clear text
+        function clearText() {
+            if (confirm('Clear all text? This cannot be undone.')) {
+                editor.innerHTML = '';
+                localStorage.removeItem('profound-writer-content');
+                status.textContent = 'Cleared';
+            }
+        }
+        
+        // Focus on load
+        editor.focus();
+    </script>
+</body>
+</html>
